@@ -12,6 +12,13 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pytz
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+user = os.getenv("USER", "jane")
+print(user)
 
 # Set page config
 st.set_page_config(
@@ -53,7 +60,7 @@ st.markdown("""
 def load_data(timezone_str='UTC'):
     """Load and preprocess the Discord messages data"""
     try:
-        with open(f'data/{user}/messages.json', 'r', encoding='utf-8') as f:
+        with open(f'data/jane/messages.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         df = pd.DataFrame(data)
