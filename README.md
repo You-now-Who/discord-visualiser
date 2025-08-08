@@ -39,7 +39,7 @@ A comprehensive Streamlit web application for visualizing and analyzing your Dis
 
 ### Prerequisites
 - Python 3.7 or higher
-- Your Discord messages data in JSON format
+- Your Discord messages data in JSON format (uploaded through the web interface)
 
 ### Quick Start
 
@@ -67,9 +67,11 @@ A comprehensive Streamlit web application for visualizing and analyzing your Dis
 
 3. **Open your browser** to the URL shown in the terminal (usually http://localhost:8501)
 
+4. **Upload your messages.json file** using the file uploader in the web interface
+
 ## Data Format
 
-Your `data/messages.json` file should contain an array of message objects with the following structure:
+The app accepts uploaded JSON files containing Discord message data. Your JSON file should contain an array of message objects with the following structure:
 
 ```json
 [
@@ -82,13 +84,34 @@ Your `data/messages.json` file should contain an array of message objects with t
 ]
 ```
 
+### Required Fields:
+- **ID**: Unique message identifier (number)
+- **Timestamp**: Message timestamp in YYYY-MM-DD HH:MM:SS format
+- **Contents**: The actual message text content
+- **Attachments**: URL to attachments or empty string if none
+
+### How to Get Your Discord Data:
+1. **Request your data**: Go to Discord Settings → Privacy & Safety → Request all of my Data
+2. **Wait for email**: Discord will email you when your data package is ready (usually takes a few days)
+3. **Download package**: Click the download link in the email
+4. **Extract files**: Unzip the downloaded package
+5. **Find messages**: Look for `messages` folder and find the JSON file for the channel/DM you want to analyze
+6. **Upload to app**: Use the file uploader in the visualizer to upload your messages.json file
+
+### Supported Message Sources:
+- Direct Messages (DMs)
+- Group DMs  
+- Server Channels (if you have message data from them)
+- Any Discord message data in the standard export format
+
 ## Usage Tips
 
-1. **Timezone Setup**: First select your timezone from the sidebar to see all times in your local time
-2. **Filtering**: Use the sidebar filters to focus on specific time periods or message lengths
-3. **Interactive Charts**: Hover over data points for detailed information
-4. **Export Data**: Download your filtered data as CSV from the Raw Data tab
-5. **Performance**: For large datasets (>50k messages), consider filtering by date range for better performance
+1. **File Upload**: Start by uploading your messages.json file using the file uploader at the top of the page
+2. **Timezone Setup**: Select your timezone from the sidebar to see all times in your local time
+3. **Filtering**: Use the sidebar filters to focus on specific time periods or message lengths
+4. **Interactive Charts**: Hover over data points for detailed information
+5. **Export Data**: Download your filtered data as CSV from the Raw Data tab
+6. **Performance**: For large datasets (>50k messages), consider filtering by date range for better performance
 
 ## Timezone Support
 
@@ -132,9 +155,10 @@ The app supports comprehensive timezone handling:
 ## Troubleshooting
 
 1. **Import Errors**: Make sure all packages are installed with `pip install -r requirements.txt`
-2. **Data Not Loading**: Check that your `data/messages.json` file exists and is properly formatted
-3. **Performance Issues**: Try filtering to a smaller date range
-4. **Browser Issues**: Try refreshing the page or clearing browser cache
+2. **File Upload Issues**: Ensure your JSON file is properly formatted and contains the required fields
+3. **Data Not Loading**: Check that your uploaded file contains valid JSON with the expected message structure
+4. **Performance Issues**: Try filtering to a smaller date range for large datasets
+5. **Browser Issues**: Try refreshing the page or clearing browser cache
 
 ## Technical Details
 

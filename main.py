@@ -13,12 +13,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pytz
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-user = os.getenv("USER", "jane")
-print(user)
 
 # Set page config
 st.set_page_config(
@@ -57,11 +51,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def load_data(timezone_str='UTC'):
+def load_data(_uploaded_file, timezone_str='UTC'):
     """Load and preprocess the Discord messages data"""
     try:
-        with open(f'data/jane/messages.json', 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        if _uploaded_file is not None:
+            # Read from uploaded file
+            data = json.load(_uploaded_file)
+        else:
+            return None
         
         df = pd.DataFrame(data)
         
@@ -461,6 +458,32 @@ def main():
     # Header
     st.markdown('<h1 class="main-header">💬 Discord Messages Visualizer</h1>', unsafe_allow_html=True)
     
+    # File upload section
+    st.markdown("### 📁 Upload Your Discord Messages Data")
+    uploaded_file = st.file_uploader(
+        "Choose your messages.json file",
+        type=['json'],
+        help="Upload the JSON file containing your Discord messages data. The file should contain an array of message objects with ID, Timestamp, Contents, and Attachments fields."
+    )
+    
+    if uploaded_file is None:
+        st.info("👆 Please upload your messages.json file to get started!")
+        st.markdown("""
+        ### 📋 Expected File Format
+        Your JSON file should contain an array of message objects like this:
+        ```json
+        [
+          {
+            "ID": 1401248510522822748,
+            "Timestamp": "2025-08-02 17:01:18",
+            "Contents": "your message content here",
+            "Attachments": "attachment_url_or_empty_string"
+          }
+        ]
+        ```
+        """)
+        return
+    
     # Sidebar
     st.sidebar.markdown('<div class="sidebar-info">', unsafe_allow_html=True)
     st.sidebar.markdown("### 📊 Dashboard Navigation")
@@ -516,11 +539,14 @@ def main():
     
     # Load data with timezone
     with st.spinner(f"Loading your Discord messages (timezone: {selected_timezone})..."):
-        df = load_data(selected_timezone)
+        df = load_data(uploaded_file, selected_timezone)
     
     if df is None:
-        st.error("Failed to load data. Please check your data/messages.json file.")
+        st.error("Failed to load data. Please check that your uploaded file is properly formatted.")
         return
+    
+    # Show file info
+    st.success(f"✅ Successfully loaded {len(df):,} messages from your file!")
     
     # Filter options in sidebar
     st.sidebar.header("🔧 Filters")
