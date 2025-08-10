@@ -10,7 +10,14 @@ A comprehensive Streamlit web application for visualizing and analyzing your Dis
 - **Real-time Conversion**: All timestamps are converted to your selected timezone
 - **Current Time Display**: See the current time in your selected timezone
 
-### 📅 Temporal Analysis
+### � Conversation Analysis
+- **Conversation Clustering**: Automatically groups messages into conversations based on time gaps
+- **Time Spent Talking**: Track total and daily time spent in conversations
+- **Conversation Patterns**: Analyze conversation length, duration, and intensity
+- **Quality Metrics**: Find your longest and most active conversations
+- **Daily Patterns**: See when you're most likely to start conversations
+
+### �📅 Temporal Analysis
 - **Messages Over Time**: Line charts showing daily message counts with rolling averages
 - **Hourly Activity**: Heatmaps showing when you're most active throughout the week
 - **Weekly Patterns**: Bar charts of activity by day of week
@@ -29,6 +36,7 @@ A comprehensive Streamlit web application for visualizing and analyzing your Dis
 
 ### 📊 Interactive Features
 - **Timezone Selection**: Convert all timestamps to your local timezone
+- **Conversation Gap Control**: Adjust the time threshold for conversation detection (1-60 minutes)
 - Date range filtering
 - Message length filtering
 - Downloadable filtered data
@@ -139,6 +147,8 @@ The app supports comprehensive timezone handling:
 - ☁️ Word clouds for text analysis
 - 🔗 Correlation matrices for relationships
 - 📦 Box plots for statistical summaries
+- 💬 Conversation flow and duration analysis
+- ⏱️ Time tracking and conversation intensity metrics
 
 ## Metrics Calculated
 
@@ -151,6 +161,13 @@ The app supports comprehensive timezone handling:
 - Emoji usage statistics
 - Question frequency
 - Attachment frequency
+- **Conversation metrics:**
+  - Total conversations detected
+  - Average conversation duration
+  - Total time spent talking
+  - Conversation intensity (messages/minute)
+  - Longest and most active conversations
+  - Conversation start time patterns
 
 ## Troubleshooting
 

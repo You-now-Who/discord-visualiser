@@ -125,6 +125,237 @@ def load_data(_uploaded_file, timezone_str='UTC'):
         st.error(f"Error loading data: {e}")
         return None
 
+def analyze_conversations(df, gap_minutes=10):
+    """Analyze messages and group them into conversations based on time gaps"""
+    # Sort messages by timestamp
+    df_sorted = df.sort_values('Timestamp').reset_index(drop=True)
+    
+    # Calculate time differences between consecutive messages
+    df_sorted['TimeDiff'] = df_sorted['Timestamp'].diff()
+    
+    # Create conversation groups
+    df_sorted['NewConversation'] = (df_sorted['TimeDiff'] > timedelta(minutes=gap_minutes)) | (df_sorted['TimeDiff'].isna())
+    df_sorted['ConversationID'] = df_sorted['NewConversation'].cumsum()
+    
+    # Calculate conversation statistics
+    conversation_stats = df_sorted.groupby('ConversationID').agg({
+        'Timestamp': ['min', 'max', 'count'],
+        'MessageLength': ['sum', 'mean'],
+        'WordCount': 'sum',
+        'EmojiCount': 'sum'
+    }).round(2)
+    
+    # Flatten column names
+    conversation_stats.columns = ['StartTime', 'EndTime', 'MessageCount', 'TotalChars', 'AvgMessageLength', 'TotalWords', 'TotalEmojis']
+    
+    # Calculate conversation duration
+    conversation_stats['Duration'] = (conversation_stats['EndTime'] - conversation_stats['StartTime']).dt.total_seconds() / 60  # in minutes
+    
+    # Add conversation metadata
+    conversation_stats['Date'] = conversation_stats['StartTime'].dt.date
+    conversation_stats['StartHour'] = conversation_stats['StartTime'].dt.hour
+    conversation_stats['DayOfWeek'] = conversation_stats['StartTime'].dt.day_name()
+    conversation_stats['Month'] = conversation_stats['StartTime'].dt.month_name()
+    conversation_stats['Year'] = conversation_stats['StartTime'].dt.year
+    
+    # Calculate messages per minute for active conversations
+    conversation_stats['MessagesPerMinute'] = conversation_stats.apply(
+        lambda row: row['MessageCount'] / max(row['Duration'], 1), axis=1
+    ).round(3)
+    
+    # Filter out single-message "conversations" for some analyses
+    conversation_stats['IsRealConversation'] = conversation_stats['MessageCount'] > 1
+    
+    return df_sorted, conversation_stats
+
+def create_conversation_analysis(df, conversation_stats):
+    """Create conversation-focused analysis visualizations"""
+    st.header("💬 Conversation Analysis")
+    
+    # Overview metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    real_conversations = conversation_stats[conversation_stats['IsRealConversation']]
+    
+    with col1:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric("Total Conversations", f"{len(conversation_stats):,}")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric("Multi-Message Conversations", f"{len(real_conversations):,}")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        avg_duration = real_conversations['Duration'].mean()
+        st.metric("Avg Conversation Duration", f"{avg_duration:.1f} min")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        total_time = real_conversations['Duration'].sum() / 60  # hours
+        st.metric("Total Time Talking", f"{total_time:.1f} hrs")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["Conversation Patterns", "Time Analysis", "Conversation Quality", "Daily Patterns"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Conversation length distribution
+            fig = px.histogram(real_conversations, x='MessageCount', nbins=30,
+                             title='Distribution of Conversation Lengths',
+                             labels={'MessageCount': 'Messages per Conversation'})
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Conversation duration distribution
+            fig2 = px.histogram(real_conversations, x='Duration', nbins=30,
+                              title='Distribution of Conversation Durations',
+                              labels={'Duration': 'Duration (minutes)'})
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        with col2:
+            # Messages per minute distribution
+            fig3 = px.histogram(real_conversations, x='MessagesPerMinute', nbins=30,
+                              title='Conversation Intensity (Messages/Minute)',
+                              labels={'MessagesPerMinute': 'Messages per Minute'})
+            st.plotly_chart(fig3, use_container_width=True)
+            
+            # Scatter: Duration vs Message Count
+            fig4 = px.scatter(real_conversations, x='Duration', y='MessageCount',
+                            title='Conversation Duration vs Message Count',
+                            labels={'Duration': 'Duration (minutes)', 'MessageCount': 'Message Count'},
+                            opacity=0.6)
+            st.plotly_chart(fig4, use_container_width=True)
+    
+    with tab2:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Daily conversation time
+            daily_time = real_conversations.groupby('Date')['Duration'].sum().reset_index()
+            daily_time['Date'] = pd.to_datetime(daily_time['Date'])
+            daily_time['Duration_Hours'] = daily_time['Duration'] / 60
+            
+            fig = px.line(daily_time, x='Date', y='Duration_Hours',
+                         title='Daily Time Spent in Conversations',
+                         labels={'Duration_Hours': 'Hours'})
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Hourly conversation starts
+            hourly_starts = real_conversations.groupby('StartHour').size().reset_index(name='ConversationCount')
+            fig2 = px.bar(hourly_starts, x='StartHour', y='ConversationCount',
+                         title='Conversation Start Times by Hour',
+                         labels={'StartHour': 'Hour of Day', 'ConversationCount': 'Conversations Started'})
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        with col2:
+            # Weekly patterns
+            weekly_time = real_conversations.groupby('DayOfWeek')['Duration'].sum().reset_index()
+            day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            weekly_time['DayOfWeek'] = pd.Categorical(weekly_time['DayOfWeek'], categories=day_order, ordered=True)
+            weekly_time = weekly_time.sort_values('DayOfWeek')
+            weekly_time['Duration_Hours'] = weekly_time['Duration'] / 60
+            
+            fig3 = px.bar(weekly_time, x='DayOfWeek', y='Duration_Hours',
+                         title='Weekly Conversation Time Distribution',
+                         labels={'DayOfWeek': 'Day of Week', 'Duration_Hours': 'Hours'})
+            st.plotly_chart(fig3, use_container_width=True)
+            
+            # Monthly trends
+            monthly_time = real_conversations.groupby(['Year', 'Month'])['Duration'].sum().reset_index()
+            monthly_time['YearMonth'] = monthly_time['Year'].astype(str) + '-' + monthly_time['Month']
+            monthly_time['Duration_Hours'] = monthly_time['Duration'] / 60
+            
+            fig4 = px.bar(monthly_time, x='YearMonth', y='Duration_Hours',
+                         title='Monthly Conversation Time',
+                         labels={'YearMonth': 'Month', 'Duration_Hours': 'Hours'})
+            fig4.update_xaxes(tickangle=45)
+            st.plotly_chart(fig4, use_container_width=True)
+    
+    with tab3:
+        # Conversation quality metrics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Top conversations by duration
+            st.subheader("🏆 Longest Conversations")
+            top_duration = real_conversations.nlargest(10, 'Duration')[['StartTime', 'Duration', 'MessageCount', 'TotalWords']]
+            top_duration['StartTime'] = top_duration['StartTime'].dt.strftime('%Y-%m-%d %H:%M')
+            top_duration['Duration'] = top_duration['Duration'].round(1)
+            st.dataframe(top_duration, use_container_width=True)
+            
+            # Average message length in conversations
+            fig = px.scatter(real_conversations, x='MessageCount', y='AvgMessageLength',
+                           title='Message Count vs Average Message Length',
+                           labels={'MessageCount': 'Messages in Conversation', 'AvgMessageLength': 'Avg Message Length'},
+                           opacity=0.6)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Top conversations by message count
+            st.subheader("🔥 Most Active Conversations")
+            top_messages = real_conversations.nlargest(10, 'MessageCount')[['StartTime', 'MessageCount', 'Duration', 'MessagesPerMinute']]
+            top_messages['StartTime'] = top_messages['StartTime'].dt.strftime('%Y-%m-%d %H:%M')
+            top_messages['Duration'] = top_messages['Duration'].round(1)
+            st.dataframe(top_messages, use_container_width=True)
+            
+            # Word density in conversations
+            fig2 = px.scatter(real_conversations, x='Duration', y='TotalWords',
+                            title='Conversation Duration vs Total Words',
+                            labels={'Duration': 'Duration (minutes)', 'TotalWords': 'Total Words'},
+                            opacity=0.6)
+            st.plotly_chart(fig2, use_container_width=True)
+    
+    with tab4:
+        # Daily conversation patterns
+        st.subheader("📅 Daily Conversation Patterns")
+        
+        # Heatmap of conversation activity
+        conversation_activity = real_conversations.groupby(['DayOfWeek', 'StartHour']).size().reset_index(name='ConversationCount')
+        conversation_pivot = conversation_activity.pivot(index='DayOfWeek', columns='StartHour', values='ConversationCount').fillna(0)
+        conversation_pivot = conversation_pivot.reindex(day_order)
+        
+        fig = px.imshow(conversation_pivot,
+                       title='Conversation Activity Heatmap: When Do You Start Talking?',
+                       labels=dict(x="Hour of Day", y="Day of Week", color="Conversations Started"),
+                       aspect="auto")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Average conversation metrics by day
+            daily_avg = real_conversations.groupby('DayOfWeek').agg({
+                'Duration': 'mean',
+                'MessageCount': 'mean',
+                'MessagesPerMinute': 'mean'
+            }).round(2)
+            daily_avg = daily_avg.reindex(day_order)
+            daily_avg['Duration_Minutes'] = daily_avg['Duration']
+            
+            fig2 = px.bar(daily_avg.reset_index(), x='DayOfWeek', y='Duration_Minutes',
+                         title='Average Conversation Duration by Day',
+                         labels={'DayOfWeek': 'Day of Week', 'Duration_Minutes': 'Avg Duration (minutes)'})
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        with col2:
+            # Conversation gaps analysis
+            gap_analysis = df.groupby(df['Timestamp'].dt.date).apply(
+                lambda x: x.sort_values('Timestamp')['Timestamp'].diff().dt.total_seconds() / 60
+            ).reset_index(name='GapMinutes')
+            gap_analysis = gap_analysis[gap_analysis['GapMinutes'].notna()]
+            
+            fig3 = px.histogram(gap_analysis[gap_analysis['GapMinutes'] <= 120], x='GapMinutes', nbins=50,
+                              title='Distribution of Time Gaps Between Messages',
+                              labels={'GapMinutes': 'Gap (minutes)'})
+            fig3.add_vline(x=10, line_dash="dash", line_color="red", 
+                          annotation_text="10min threshold")
+            st.plotly_chart(fig3, use_container_width=True)
+
 def get_common_timezones():
     """Get a list of common timezones for the selectbox"""
     common_timezones = [
@@ -586,8 +817,22 @@ def main():
     # Overview metrics
     create_overview_metrics(df)
     
+    # Conversation gap setting in sidebar
+    st.sidebar.header("💬 Conversation Settings")
+    gap_minutes = st.sidebar.slider(
+        "Conversation Gap Threshold (minutes)",
+        min_value=1,
+        max_value=60,
+        value=10,
+        help="Messages separated by more than this time will be considered separate conversations"
+    )
+    
+    # Analyze conversations
+    with st.spinner("Analyzing conversations..."):
+        df_with_conversations, conversation_stats = analyze_conversations(df, gap_minutes)
+    
     # Main content tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📅 Temporal Analysis", "📝 Message Analysis", "🔍 Advanced Analytics", "📊 Raw Data"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📅 Temporal Analysis", "📝 Message Analysis", "💬 Conversation Analysis", "🔍 Advanced Analytics", "📊 Raw Data"])
     
     with tab1:
         create_temporal_analysis(df)
@@ -596,9 +841,14 @@ def main():
         create_message_analysis(df)
     
     with tab3:
-        create_advanced_analytics(df)
+        # Additional conversation overview at the top
+        st.info(f"💡 **Conversation Detection**: Messages separated by more than {gap_minutes} minutes are considered separate conversations")
+        create_conversation_analysis(df_with_conversations, conversation_stats)
     
     with tab4:
+        create_advanced_analytics(df)
+    
+    with tab5:
         st.header("📊 Raw Data Explorer")
         
         # Display sample data
